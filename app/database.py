@@ -25,7 +25,8 @@ def init_db():
         db.executescript("""
         CREATE TABLE IF NOT EXISTS meetings (
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, meeting_date TEXT NOT NULL,
-            summary TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
+            summary TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+            processing_status TEXT NOT NULL DEFAULT 'complete', processing_error TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS speakers (
             id INTEGER PRIMARY KEY AUTOINCREMENT, meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
@@ -42,6 +43,12 @@ def init_db():
             source TEXT NOT NULL, confidence REAL NOT NULL
         );
         """)
+        # Migrate existing hackathon databases without changing their demo data.
+        columns = {row[1] for row in db.execute("PRAGMA table_info(meetings)")}
+        if "processing_status" not in columns:
+            db.execute("ALTER TABLE meetings ADD COLUMN processing_status TEXT NOT NULL DEFAULT 'complete'")
+        if "processing_error" not in columns:
+            db.execute("ALTER TABLE meetings ADD COLUMN processing_error TEXT NOT NULL DEFAULT ''")
 
 
 def seed_demo():

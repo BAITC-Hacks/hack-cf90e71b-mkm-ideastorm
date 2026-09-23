@@ -1,15 +1,22 @@
 """FastAPI application for the QazMeeting AI local-first demo."""
 from pathlib import Path
+from datetime import date, datetime
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from typing import Optional
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.config import BASE_DIR, DEMO_MODE
+from app.config import BASE_DIR, DEMO_MODE, UPLOAD_DIR
 from app.database import connection, init_db, one, rows, seed_demo
 from app.services.exports import to_docx, to_pdf
 from app.services.speakers import rename_speaker
+from app.services.transcription import get_transcriber, TranscriptionError
+
+SUPPORTED_AUDIO = {".mp3", ".wav", ".m4a", ".mp4"}
+MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
 
 app = FastAPI(title="QazMeeting AI", description="Локальная обработка встреч")
 
@@ -54,6 +61,64 @@ def create_meeting(payload: MeetingCreate):
         cursor = db.execute("INSERT INTO meetings(title,meeting_date,created_at) VALUES(?,?,datetime('now'))", (payload.title, payload.meeting_date))
         meeting_id = cursor.lastrowid
     return {"id": meeting_id, "title": payload.title, "meeting_date": payload.meeting_date}
+
+
+@app.post("/api/meetings/upload", status_code=201)
+async def upload_meeting(title: str = Form(...), recording: Optional[UploadFile] = File(None)):
+    if DEMO_MODE:
+        raise HTTPException(403, "Audio upload is available in local-AI mode. Set DEMO_MODE=false.")
+    title = title.strip()
+    if not title:
+        raise HTTPException(400, "Enter a meeting title.")
+    if not recording or not recording.filename:
+        raise HTTPException(400, "Choose a recording to upload.")
+    suffix = Path(recording.filename).suffix.lower()
+    if suffix not in SUPPORTED_AUDIO:
+        raise HTTPException(415, "Unsupported file type. Choose an MP3, WAV, M4A, or MP4 recording.")
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    audio_path = UPLOAD_DIR / f"{uuid4().hex}{suffix}"
+    size = 0
+    try:
+        with audio_path.open("wb") as target:
+            while chunk := await recording.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(413, "Recording is too large. Maximum upload size is 1 GB.")
+                target.write(chunk)
+        if size == 0:
+            raise HTTPException(400, "The selected recording is empty.")
+        with connection() as db:
+            meeting_id = db.execute(
+                "INSERT INTO meetings(title,meeting_date,created_at,processing_status) VALUES(?,?,?,?)",
+                (title, date.today().isoformat(), datetime.now().isoformat(timespec="seconds"), "processing")
+            ).lastrowid
+        try:
+            result = get_transcriber().transcribe(str(audio_path))
+        except TranscriptionError as exc:
+            with connection() as db:
+                db.execute("UPDATE meetings SET processing_status='failed', processing_error=? WHERE id=?", (str(exc), meeting_id))
+            raise HTTPException(503, str(exc)) from exc
+        except Exception as exc:
+            with connection() as db:
+                db.execute("UPDATE meetings SET processing_status='failed', processing_error=? WHERE id=?",
+                           ("Transcription failed. Check the local model and recording, then try again.", meeting_id))
+            raise HTTPException(500, "Transcription failed. Check the local model and recording, then try again.") from exc
+        with connection() as db:
+            db.execute("INSERT INTO speakers(meeting_id,speaker_key,display_name) VALUES(?,?,?)",
+                       (meeting_id, "SPEAKER_00", "Speaker 1 (unverified)"))
+            db.executemany("INSERT INTO segments(meeting_id,speaker_key,start_seconds,end_seconds,text,language) VALUES(?,?,?,?,?,?)",
+                           [(meeting_id, segment.speaker, segment.start, segment.end, segment.text, segment.language)
+                            for segment in result.segments])
+            db.execute("UPDATE meetings SET processing_status='complete' WHERE id=?", (meeting_id,))
+        return {"id": meeting_id, "title": title, "processing_status": "complete"}
+    except HTTPException:
+        audio_path.unlink(missing_ok=True)
+        raise
+    except OSError as exc:
+        audio_path.unlink(missing_ok=True)
+        raise HTTPException(500, "Could not save the recording locally. Check available disk space and permissions.") from exc
+    finally:
+        await recording.close()
 
 
 @app.get("/api/meetings/{meeting_id}")

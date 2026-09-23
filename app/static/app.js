@@ -5,12 +5,13 @@ let dashboardData;
 
 async function api(url, options={}) {
   const response = await fetch(url,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
-  if(!response.ok) throw new Error(await response.text());
+  if(!response.ok) { let message=await response.text(); try { message=JSON.parse(message).detail||message; } catch {} throw new Error(message); }
   return response;
 }
 async function loadDashboard(){
   dashboardData=await (await api('/api/dashboard')).json();
   $('#demo-banner').classList.toggle('hidden',!dashboardData.demo_mode);
+  $('#new-meeting').textContent=dashboardData.demo_mode?'＋ Новая встречa':'＋ New meeting / Upload recording';
   $('#stat-meetings').textContent=dashboardData.meeting_count;
   $('#stat-actions').textContent=dashboardData.action_count;
   $('#stat-overdue').textContent=dashboardData.overdue_count;
@@ -22,6 +23,7 @@ function statusClass(s){return s==='Completed'?'completed':s==='Overdue'?'overdu
 function statusRu(s){return s==='Completed'?'Выполнено':s==='Overdue'?'Просрочено':'В работе'}
 async function openMeeting(id){
   const data=await (await api(`/api/meetings/${id}`)).json();
+  if(data.meeting.processing_status==='failed'){alert(data.meeting.processing_error||'Local transcription failed.');return;}
   $('#dashboard-view').classList.add('hidden');$('#meeting-view').classList.remove('hidden');
   const speakers=data.speakers.map(s=>`<label class="speaker-chip"><i class="speaker-dot"></i><span>${safe(s.speaker_key.replace('SPEAKER_','Спикер '))}</span><input aria-label="Имя спикера" data-speaker="${safe(s.speaker_key)}" value="${safe(s.display_name)}" title="Измените имя и нажмите Enter"></label>`).join('');
   const transcript=data.segments.map(s=>`<div class="transcript-row"><span class="timestamp">${String(Math.floor(s.start_seconds/60)).padStart(2,'0')}:${String(Math.floor(s.start_seconds%60)).padStart(2,'0')}</span><span class="transcript-speaker">${safe(s.display_name)}</span><span class="transcript-text">${safe(s.text)} <small class="lang">${safe(s.language)}</small></span></div>`).join('');
@@ -32,8 +34,10 @@ async function openMeeting(id){
 }
 function showHome(){ $('#meeting-view').classList.add('hidden');$('#dashboard-view').classList.remove('hidden');loadDashboard(); }
 $('#back').addEventListener('click',showHome);
-$('#new-meeting').addEventListener('click',()=>{const d=new Date();$('#meeting-form [name=meeting_date]').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;$('#new-dialog').showModal()});
+$('#new-meeting').addEventListener('click',()=>{if(dashboardData&&!dashboardData.demo_mode){$('#dashboard-view').classList.add('hidden');$('#meeting-view').classList.add('hidden');$('#upload-dialog').classList.remove('hidden');$('#upload-form').reset();$('#upload-error').classList.add('hidden');return;}const d=new Date();$('#meeting-form [name=meeting_date]').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;$('#new-dialog').showModal()});
 $('#dialog-close').addEventListener('click',()=>$('#new-dialog').close());$('#cancel-create').addEventListener('click',()=>$('#new-dialog').close());
 $('#meeting-form').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget);const m=await(await api('/api/meetings',{method:'POST',body:JSON.stringify({title:f.get('title'),meeting_date:f.get('meeting_date')})})).json();$('#new-dialog').close();await loadDashboard();await openMeeting(m.id)});
+$('#upload-cancel').addEventListener('click',()=>{$('#upload-dialog').classList.add('hidden');$('#dashboard-view').classList.remove('hidden')});
+$('#upload-form').addEventListener('submit',async e=>{e.preventDefault();const button=$('#upload-submit'),error=$('#upload-error');button.disabled=true;button.textContent='Uploading and transcribing locally…';error.classList.add('hidden');try{const response=await fetch('/api/meetings/upload',{method:'POST',body:new FormData(e.currentTarget)});if(!response.ok){let msg=await response.text();try{msg=JSON.parse(msg).detail||msg}catch{}throw new Error(msg)}const meeting=await response.json();$('#upload-dialog').classList.add('hidden');await loadDashboard();await openMeeting(meeting.id)}catch(err){error.textContent=err.message||'Local transcription failed.';error.classList.remove('hidden')}finally{button.disabled=false;button.textContent='Upload and transcribe locally'}});
 $('#see-all').addEventListener('click',()=>document.querySelector('#meetings').scrollIntoView({behavior:'smooth'}));
 loadDashboard().catch(e=>{console.error(e);$('#meetings-list').innerHTML='<p>Не удалось подключиться к серверу. Проверьте, что приложение запущено.</p>'});

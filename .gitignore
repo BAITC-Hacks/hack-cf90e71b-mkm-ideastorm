@@ -11,6 +11,11 @@ uploads/
 recordings/
 generated/
 exports/
+.cache/
+models/
+hf_cache/
+torch_cache/
+*.log
 *.wav
 *.mp3
 *.m4a
