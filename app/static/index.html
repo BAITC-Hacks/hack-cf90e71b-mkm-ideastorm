@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb"><title>QazMeeting AI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">Q</div><div><strong>QazMeeting</strong><small>AI ASSISTANT</small></div></div>
+    <nav><a class="nav-link active" href="#dashboard"><span>▦</span> Обзор</a><a class="nav-link" href="#meetings"><span>◷</span> Встречи</a></nav>
+    <div class="side-bottom"><span class="local-dot"></span><div><strong>Данные остаются у вас</strong><small>Обработка на устройстве</small></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div class="crumb">Рабочее пространство <span>/</span> Встречи</div><div class="top-right"><span class="privacy-pill"><i></i> ON-PREMISE</span><div class="avatar">А</div></div></header>
+    <div class="content">
+      <div id="demo-banner" class="demo-banner hidden"><span class="demo-icon">✦</span><div><strong>Демо-режим</strong><span>Сценарий с безопасными демонстрационными данными. Аудио не загружается в облако.</span></div><span class="demo-tag">DEMO</span></div>
+      <section id="dashboard-view">
+        <div class="page-heading"><div><p class="eyebrow">ВАШИ РЕШЕНИЯ — ВАШИ ДАННЫЕ</p><h1>Добро пожаловать 👋</h1><p class="subtitle">Протоколы встреч и поручения — в одном месте.</p></div><button class="button primary" id="new-meeting">＋ Новая встреча</button></div>
+        <div class="stats-grid"><article class="stat-card"><div class="stat-top"><span class="stat-label">Встречи</span><span class="stat-icon blue">▣</span></div><strong id="stat-meetings">—</strong><small>всего встреч</small></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Поручения</span><span class="stat-icon violet">☷</span></div><strong id="stat-actions">—</strong><small>зафиксировано</small></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Просрочено</span><span class="stat-icon orange">◷</span></div><strong id="stat-overdue">—</strong><small>требуют внимания</small></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Выполнено</span><span class="stat-icon green">✓</span></div><strong id="stat-completed">—</strong><small>готово</small></article></div>
+        <div class="section-head" id="meetings"><div><h2>Последние встречи</h2><p>Транскрипты, решения и следующие шаги команды</p></div><button class="button secondary" id="see-all">Все встречи <span>→</span></button></div>
+        <div id="meetings-list" class="meeting-list"></div>
+        <section class="privacy-card"><div class="privacy-art"><div class="shield">⬟<b>✓</b></div><span class="orbit orbit-a"></span><span class="orbit orbit-b"></span></div><div><span class="privacy-kicker">ВАША ИНФОРМАЦИЯ ОСТАЁТСЯ ВАШЕЙ</span><h2>Приватность заложена в архитектуру</h2><p>Распознавание, анализ и хранение работают в вашей инфраструктуре. Записи встреч не передаются внешним AI API.</p><div class="pipeline"><span>Аудио</span><b>→</b><span>Локальный AI</span><b>→</b><span>SQLite</span><b>→</b><span>Протокол</span></div></div></section>
+      </section>
+      <section id="meeting-view" class="hidden"><button class="back-link" id="back">← Все встречи</button><div id="meeting-content"></div></section>
+    </div>
+    <footer><span>QazMeeting AI</span><span>Локальная обработка <i class="local-dot"></i></span></footer>
+  </main>
+  <dialog id="new-dialog"><form id="meeting-form"><button type="button" class="dialog-close" id="dialog-close">×</button><p class="eyebrow">НОВАЯ ВСТРЕЧА</p><h2>Создать встречу</h2><label>Название встречи<input name="title" required value="Новая встреча" placeholder="Например: Еженедельный статус"></label><label>Дата<input name="meeting_date" type="date" required></label><p class="form-note">Для презентации откройте демо-встречу с готовой транскрипцией и поручениями.</p><div class="dialog-actions"><button class="button secondary" type="button" id="cancel-create">Отмена</button><button class="button primary" type="submit">Создать</button></div></form></dialog>
+  <script src="/app.js"></script>
+</body>
+</html>
